@@ -32,7 +32,7 @@ color_table=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
     ,'xkcd:fern green','xkcd:rose red']
 
 y0_values=[0,0.1,0.2,0.3,0.4,0.5]
-explore_alpha = False # whether to use crossvalidation to identify optimal alpha
+explore_alpha = True # whether to use crossvalidation to identify optimal alpha
 #y0_values=[0,0.2,0.5]
 
 # read Gibbs energy expression from file
