@@ -1,4 +1,4 @@
-from HydroGEN_CEF_general import *
+from HydroGEN_CEF_general_current import *
 
 #lattice='(A +2)1(Mn +3,Mn +4)1(O -2,Va 0)3'
 #lattice='(La +3,Sr +2,Va 0)1(Mn +2,Mn +3,Mn +4,Va 0)1(O -2,Va 0)3'
