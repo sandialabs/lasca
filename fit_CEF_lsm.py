@@ -32,6 +32,7 @@ color_table=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
     ,'xkcd:fern green','xkcd:rose red']
 
 y0_values=[0,0.1,0.2,0.3,0.4,0.5]
+explore_alpha = False # whether to use crossvalidation to identify optimal alpha
 #y0_values=[0,0.2,0.5]
 
 # read Gibbs energy expression from file
@@ -169,82 +170,84 @@ X_st=scaler.transform(X)
 
 features = [str(i) for i in L]+[str(i) for i in a]
 
-
-# plot alpha-importance diagram
-clf = Lasso(alpha=1e-7,tol=1e-13,max_iter=int(1e7),fit_intercept=False)
-clf.fit(X_st, f)
-importance0 = np.abs(clf.coef_)
-
-log_alpha=[-11+0.2*i for i in range(56)]
-importances=[]
-for i in log_alpha:
-    clf = Lasso(alpha=10**(i),tol=1e-13,max_iter=int(1e7),fit_intercept=False)
+if explore_alpha:
+    # plot alpha-importance diagram
+    print("\nGenerating alpha-importance diagram:")
+    clf = Lasso(alpha=1e-7,tol=1e-13,max_iter=int(1e7),fit_intercept=False)
     clf.fit(X_st, f)
-    importance = np.abs(clf.coef_)
-    importances.append(importance)
+    importance0 = np.abs(clf.coef_)
 
-importances=np.array(importances)
-log_alpha=np.array(log_alpha)
-log_alpha=log_alpha.reshape(-1,1)
-#aim=np.hstack([log_alpha,importances])
-#np.savetxt('aim',aim,fmt="%.15f  ",header='log_alpha param1 param2 ...')
-aim=np.loadtxt('aim')
-log_alpha,importances=aim[:,0],aim[:,1:]
+    log_alpha=[-11+0.2*i for i in range(56)]
+    importances=[]
+    for i in log_alpha:
+        print(f"Processing alpha = {10**i}")
+        clf = Lasso(alpha=10**(i),tol=1e-13,max_iter=int(1e7),fit_intercept=False)
+        clf.fit(X_st, f)
+        importance = np.abs(clf.coef_)
+        importances.append(importance)
 
-plt.cla()
-ia,iL=0,0
-for i in range(importances[:,importance0 > 0].shape[1]):
-    label='$\mathrm{'+param_names[np.array(features)[importance0 > 0][i]]+'}$'
-    #label='$'+param_names[np.array(features)[importance0 > 0][i]]+'$'
-    if 'L_' in label:
-        linestyle="dashdot"
-        iL=iL+1;icolor=iL
-    else:
-        linestyle="solid"
-        ia=ia+1;icolor=ia
-    plt.plot(log_alpha,importances[:,importance0 > 0][:,i],label=label,linestyle=linestyle,color=color_table[icolor])
+    importances=np.array(importances)
+    log_alpha=np.array(log_alpha)
+    log_alpha=log_alpha.reshape(-1,1)
+    aim=np.hstack([log_alpha,importances])
+    np.savetxt('aim',aim,fmt="%.15f  ",header='log_alpha param1 param2 ...')
+    # aim=np.loadtxt('aim')
+    log_alpha,importances=aim[:,0],aim[:,1:]
 
-plt.xlabel("$\mathregular{logα}$",fontsize=15)
-plt.ylabel('Importance',fontsize=15)
-#plt.subplots_adjust(left=0.07, right=0.85, bottom=0.1, top=0.93)
-plt.subplots_adjust(left=0.07, right=0.93, bottom=0.1, top=0.93)
-#plt.legend(handlelength=2.5,bbox_to_anchor=(1.01, 1.05), loc="upper left",frameon=False,ncol=1,columnspacing=1,fontsize=7)
-plt.legend(handlelength=2.5,bbox_to_anchor=(0.29, 1.0), loc="upper left",frameon=False,ncol=3,columnspacing=1,fontsize=9)
-#plt.legend(loc="lower left", bbox_to_anchor=(0.0,1.02), ncols=3) 
-#plt.show()
-plt.ylim([0,6])
-plt.xlim([-7,0])
-plt.savefig('aim.png',dpi=300, bbox_inches='tight')
+    plt.cla()
+    ia,iL=0,0
+    for i in range(importances[:,importance0 > 0].shape[1]):
+        label='$\mathrm{'+param_names[np.array(features)[importance0 > 0][i]]+'}$'
+        #label='$'+param_names[np.array(features)[importance0 > 0][i]]+'$'
+        if 'L_' in label:
+            linestyle="dashdot"
+            iL=iL+1;icolor=iL
+        else:
+            linestyle="solid"
+            ia=ia+1;icolor=ia
+        plt.plot(log_alpha,importances[:,importance0 > 0][:,i],label=label,linestyle=linestyle,color=color_table[icolor])
 
-#CV
-from sklearn.linear_model import LassoCV
+    plt.xlabel("$\mathregular{logα}$",fontsize=15)
+    plt.ylabel('Importance',fontsize=15)
+    #plt.subplots_adjust(left=0.07, right=0.85, bottom=0.1, top=0.93)
+    plt.subplots_adjust(left=0.07, right=0.93, bottom=0.1, top=0.93)
+    #plt.legend(handlelength=2.5,bbox_to_anchor=(1.01, 1.05), loc="upper left",frameon=False,ncol=1,columnspacing=1,fontsize=7)
+    plt.legend(handlelength=2.5,bbox_to_anchor=(0.29, 1.0), loc="upper left",frameon=False,ncol=3,columnspacing=1,fontsize=9)
+    #plt.legend(loc="lower left", bbox_to_anchor=(0.0,1.02), ncols=3) 
+    #plt.show()
+    plt.ylim([0,6])
+    plt.xlim([-7,0])
+    plt.savefig('aim.png',dpi=300, bbox_inches='tight')
 
-nfolds=[5,10,20,50,100]
-lasso=['' for i in range(len(nfolds))]
-for i in range(len(nfolds)):
-    lasso[i] = LassoCV(cv=nfolds[i],eps=1e-8).fit(X_st, f)
+    #CV
+    from sklearn.linear_model import LassoCV
 
-for i in range(len(nfolds)):
-    xmin, xmax = 1e-7, 1
-    #plt.plot(lasso.alphas_, lasso.mse_path_, linestyle=":")
-    plt.plot(
-        lasso[i].alphas_,
-        lasso[i].mse_path_.mean(axis=-1),
-        color=color_table[i],
-        label="MSE, "+str(nfolds[i])+'-fold',
-        linewidth=2,
-    )
-    plt.axvline(lasso[i].alpha_, linestyle="--", color=color_table[i], label=r"$\alpha_\mathrm{opt}$, "+str(nfolds[i])+'-fold')
+    nfolds=[5,10,20,50,100]
+    lasso=['' for i in range(len(nfolds))]
+    for i in range(len(nfolds)):
+        lasso[i] = LassoCV(cv=nfolds[i],eps=1e-8).fit(X_st, f)
 
-plt.xlim(xmin, xmax)
-plt.xscale('log')
-plt.yscale('log')
-plt.xlabel(r"$\alpha$",fontsize=15)
-plt.ylabel(r"Mean square error (eV$^2$)",fontsize=15)
-plt.subplots_adjust(left=0.09, right=0.81, bottom=0.1, top=0.93)
-plt.legend(frameon=False,bbox_to_anchor=(1.0, 0.98), loc="upper left",prop={'size': 10})
-#plt.show()
-plt.savefig('cv.png',dpi=300, bbox_inches='tight')
+    for i in range(len(nfolds)):
+        xmin, xmax = 1e-7, 1
+        #plt.plot(lasso.alphas_, lasso.mse_path_, linestyle=":")
+        plt.plot(
+            lasso[i].alphas_,
+            lasso[i].mse_path_.mean(axis=-1),
+            color=color_table[i],
+            label="MSE, "+str(nfolds[i])+'-fold',
+            linewidth=2,
+        )
+        plt.axvline(lasso[i].alpha_, linestyle="--", color=color_table[i], label=r"$\alpha_\mathrm{opt}$, "+str(nfolds[i])+'-fold')
+
+    plt.xlim(xmin, xmax)
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.xlabel(r"$\alpha$",fontsize=15)
+    plt.ylabel(r"Mean square error (eV$^2$)",fontsize=15)
+    plt.subplots_adjust(left=0.09, right=0.81, bottom=0.1, top=0.93)
+    plt.legend(frameon=False,bbox_to_anchor=(1.0, 0.98), loc="upper left",prop={'size': 10})
+    #plt.show()
+    plt.savefig('cv.png',dpi=300, bbox_inches='tight')
 
 # do lasso at the chosen alpha 
 clf = Lasso(alpha=1e-4,tol=1e-13,max_iter=int(1e7),fit_intercept=False)
@@ -425,7 +428,8 @@ for m in range(len(y0_values)):
         dumpfn(res,res_dir+'results_'+str(y0_values[m])+'.json')
 
 # plot x(O)-p(O2)
-res_dir=['results_wexpt/','results_025/','results_dft/']
+# res_dir=['results_wexpt/','results_025/','results_dft/']
+res_dir=['results_wexpt/']
 #res_dir=['results_dft/']
 la=[' K, calc., full data',' K, calc., reduced data',' K, calc., DFT only']
 linestyles=['solid','dotted',"dashed"]
