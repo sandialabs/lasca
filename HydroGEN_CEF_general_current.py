@@ -66,6 +66,7 @@ def generate_cef_module(lattice,G_neutral_values=[],T_terms=[1,T,T*log(T)],ir=(-
 
 	c=parse_lattice(lattice) # the list of species, charges and stoichiometries of the lattice string.
 	s=[c[2*j+1] for j in range(len(c)//2)] # stoichiometries
+	print(str(s))
 	q=[[k[1] for k in c[2*j]] for j in range(len(c)//2)] # charges
 
 	y0=[[0 for k in range(1,len(c[2*j]))] for j in range(len(c)//2) if len(c[2*j])>1] # initialize the site fraction list (for the site with #species>1); the site fraction of the first species is excluded due to dependency.
@@ -256,6 +257,7 @@ def generate_cef_module(lattice,G_neutral_values=[],T_terms=[1,T,T*log(T)],ir=(-
 		G_neutral_values=np.zeros(len(G_neutral)) # It is recommended to use the default zeros for G_neutral_values.
 
 	# Introduce symbols for site fractions.
+	y_raw=[[symbols('y'+str(j)+'_('+re.sub(r"([a-zA-Z])0", r"\1", c[2*j][k][0]+('%f' % c[2*j][k][1]).rstrip('0').rstrip('.'))+')') for k in range(len(c[2*j]))] for j in range(len(c)//2) if len(c[2*j])>1] # no constraint applied
 	y=[[symbols('y'+str(j)+'_('+re.sub(r"([a-zA-Z])0", r"\1", c[2*j][k][0]+('%f' % c[2*j][k][1]).rstrip('0').rstrip('.'))+')') for k in range(1,len(c[2*j]))] for j in range(len(c)//2) if len(c[2*j])>1]
 	# Independent y
 	y_idp=flatten(y)
@@ -304,29 +306,39 @@ def generate_cef_module(lattice,G_neutral_values=[],T_terms=[1,T,T*log(T)],ir=(-
 	S=0.0
 	for i in range(len(y)):
 		for j in range(len(y[i])):
-			S=S-symbols('R')*y[i][j]*log(y[i][j])
+			S=S-s[i]*symbols('R')*y[i][j]*log(y[i][j])
 
 	# Excess Gibbs energy
 	G_ex=0.0
 	L_terms=[]
 	iL=1
+	L_names=[]
 	for i in range(len(y)):
 		y2=[y0[j] for j in range(len(y0)) if j!=i]
-		yy=rend(len(y2),y2)
+		yy=rend(len(y2),y2);print(yy)
 		for m in range(len(yy)):
 			yy[m]=[[1-sum(mm)]+mm for mm in yy[m]]
 		y_no_mixing=[y[j] for j in range(len(y)) if j!=i]
+		y_no_mixing_raw=[y_raw[j] for j in range(len(y)) if j!=i]
 		for j in range(len(y[i])):
 			for k in range(j+1,len(y[i])):
 				for m in range(len(yy)):				
 					product_y=1
+					no_mixing_species=[]
 					for mm in range(len(yy[m])):
 						product_y=product_y*np.dot(np.array(yy[m][mm]),np.array(y_no_mixing[mm]))
-					G_ex=G_ex+y[i][j]*y[i][k]*product_y*(symbols('L'+str(iL))+(y[i][k]-y[i][j])*symbols('L'+str(iL+1)))
-					L_terms.append({'original':y[i][j]*y[i][k]*product_y})
-					L_terms.append({'original':y[i][j]*y[i][k]*product_y*(y[i][k]-y[i][j])})
+						yd=np.dot(np.array(yy[m][mm]),np.array(y_no_mixing_raw[mm]))
+						no_mixing_species.append(str(yd).split('_')[-1].strip('(').strip(')'))
+					G_ex=G_ex+product_y*y[i][j]*y[i][k]*(symbols('L'+str(iL))+(y[i][j]-y[i][k])*symbols('L'+str(iL+1)))
+					L_terms.append({'original':product_y*y[i][j]*y[i][k]})
+					L_terms.append({'original':product_y*y[i][j]*y[i][k]*(y[i][j]-y[i][k])})
 					iL=iL+2
+					#no_mixing_species=[ for m in y_no_mixing_raw[m]]
+					no_mixing_species.insert(i, str(y_raw[i][j]).split('_')[-1].strip('(').strip(')')+','+str(y_raw[i][k]).split('_')[-1].strip('(').strip(')'))
+					L_names.append('L_{'+':'.join(no_mixing_species)+';0}')
+					L_names.append('L_{'+':'.join(no_mixing_species)+';1}')
 
+	#print(L_names)
 	# Customizable function for simplifying an expression.
 	def simp(G,expand=True): 
 		# use charge neutrality to remove one assigned site fraction.
@@ -390,22 +402,29 @@ def generate_cef_module(lattice,G_neutral_values=[],T_terms=[1,T,T*log(T)],ir=(-
 
 	G_ex=G_ex.subs(dict_L_renumber) # Renumber the remained L parameters.
 
+	dict_L_names={}
 	for i in range(1,iL):
 		if symbols('L'+str(i)) in L_kept:
 			print('L'+str(i)+' -> '+str(dict_L_renumber[symbols('L'+str(i))])+'	'+str(L_terms[i-1]['original'])+'	'+str(L_terms[i-1]['simplified']))
+			dict_L_names[str(dict_L_renumber[symbols('L'+str(i))])]=L_names[i-1]
+			print(dict_L_names)
 		else:
 			print('L'+str(i)+' -> '+'Redundant'+'	'+str(L_terms[i-1]['original'])+'	'+str(L_terms[i-1]['simplified']))
 
 	# Complete Solution Model 
-	G_sol=G_end-symbols('T')*S+G_ex
+	G_sol=G_end+G_ex-symbols('T')*S;G_sol_unexpanded=G_sol
 	G_sol,dict_y_subs,y_idp=simp(G_sol) # simplifying the total Gibbs energy
 
 	# Make expansion of G -> G(T) 1 = B*T 2 = B*T + C*T*ln(T) 3 = B*T + C*T*ln(T) + T^2/2
 	# T_terms=[1,T,T*log(T)] # Customizable: [1,T]; [1,T,T*log(T)]; [1,T,T*log(T),T**2]; ...
 	if use_neutral:
 		aG_end=[[symbols('a_'+str(i)+'_'+str(j)) for j in range(len(T_terms))] for i in range(len(G_neutral))] # T coefficients of the endmember part of Gibbs energy.
+		a_names=[['a_{'+str(G_neutral[i]).strip('G_').strip('(').strip(')').replace(')(',':')+';'+str(j)+'}' for j in range(len(T_terms))] for i in range(len(G_neutral))]
 	else:
 		aG_end=[[symbols('a_'+str(i)+'_'+str(j)) for j in range(len(T_terms))] for i in range(len(G_all))]
+		a_names=[['a_{'+str(G_all[i]).strip('G_').strip('(').strip(')').replace(')(',':')+';'+str(j)+'}' for j in range(len(T_terms))] for i in range(len(G_all))]
+	print(a_names)
+	dict_a_names=dict(zip([str(i) for sub in aG_end for i in sub], [i for sub in a_names for i in sub]))
 	"""
 	Substitute the endmember Gibbs energy by T series with coefficients.
 	"""
@@ -478,8 +497,9 @@ def generate_cef_module(lattice,G_neutral_values=[],T_terms=[1,T,T*log(T)],ir=(-
 			else:
 				f.write('L'+str(i)+' -> '+'Redundant'+'	'+str(L_terms[i-1]['original'])+'	'+str(L_terms[i-1]['simplified'])+'\n')
 		f.write('\n')
-		f.write('Total Gibbs energy without T expansion:'+'\n')
-		f.write(str(G_sol)+'\n')
+		f.write('Total Gibbs energy without expansion:'+'\n')
+		#f.write(str(G_sol)+'\n')
+		f.write(str(G_sol_unexpanded)+'\n')
 		f.write('\n')
 		f.write('T terms for expansion:'+'\n')
 		f.write(str(T_terms)+'\n')
@@ -511,3 +531,9 @@ def generate_cef_module(lattice,G_neutral_values=[],T_terms=[1,T,T*log(T)],ir=(-
 		f.write('\n')
 		f.write('Independent excess parameters:'+'\n')
 		f.write(str(list(dict_L_renumber.values()))+'\n')
+		f.write('\n')
+		f.write('a_names:'+'\n')
+		f.write(str(dict_L_names)+'\n')
+		f.write('\n')
+		f.write('L_names:'+'\n')
+		f.write(str(dict_a_names)+'\n')
