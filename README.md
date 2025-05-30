@@ -4,7 +4,7 @@ Code for CEF fitting of EOS predictions with LASSO parameter fitting
 
 Reproduces results of [10.26434/chemrxiv-2024-jtfwd-v2](https://doi.org/10.26434/chemrxiv-2024-jtfwd-v2) for predicting oxygen off-stoichiometry as a function of T and P
 
-Code developed by @PinwenGuan while a Postdoctoral Researcher at Sandia
+Code developed by [Pinwen Guan](https://github.com/PinwenGuan) while a Postdoctoral Researcher at Sandia
 
 # file instructions
 
