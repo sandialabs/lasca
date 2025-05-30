@@ -2,7 +2,7 @@
 
 Code for CEF fitting of EOS predictions with LASSO parameter fitting
 
-Reproduces results of doi:XXXXX for predicting oxygen off-stoichiometry as a function of T and P
+Reproduces results of doi:10.26434/chemrxiv-2024-jtfwd-v2 for predicting oxygen off-stoichiometry as a function of T and P
 
 # file instructions
 
